@@ -1,6 +1,9 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
+using System.Threading.Tasks;
+using TodoAPI.Data;
 
 namespace TodoAPI.Controllers
 {
@@ -8,69 +11,72 @@ namespace TodoAPI.Controllers
     [Route("api/[controller]")]
     [ApiController]
     public class TodosController : ControllerBase
-    {
 
-        private static List<Todo> _todos = new List<Todo>
     {
-        new Todo {Id = 1, Text = "Learn C#", Done = false},
-        new Todo {Id = 2, Text = "Build Web API", Done=false}
-    };
-        private static int _nextId = 3;
+        private readonly TodoDbContext _context;
+
+        public TodosController(TodoDbContext context)
+        {
+            _context = context;
+        }
 
         [HttpGet]
-        public List<Todo> GetTodos() {
+        public async Task<ActionResult<IEnumerable<Todo>>> GetTodos() {
 
-            return _todos;
+            var todos = await _context.Todos.ToListAsync();
+            return Ok(todos);
         }
 
-        [HttpPost]
-        public ActionResult<Todo> CreateTodo([FromBody] CreateTodoRequest request) {
+         [HttpPost]
+         public async Task<ActionResult<Todo>> CreateTodo([FromBody] CreateTodoRequest request) {
 
-            if (string.IsNullOrWhiteSpace(request.Text))
-            {
-                return BadRequest(new { error = "Text is required" });
-            }
+             if (string.IsNullOrWhiteSpace(request.Text))
+             {
+                 return BadRequest(new { error = "Text is required" });
+             }
 
-            var newTodo = new Todo
-            {
-                Id = _nextId++,
-                Text = request.Text.Trim(),
-                Done = false
-            };
+             var newTodo = new Todo
+             {
+                 Text = request.Text.Trim(),
+                 Done = false
+             };
 
-            _todos.Add(newTodo);
-            return CreatedAtAction(nameof(GetTodos), new { id = newTodo.Id }, newTodo);
-        }
+             _context.Todos.Add(newTodo);
+            await _context.SaveChangesAsync();
+             return CreatedAtAction(nameof(GetTodos), new { id = newTodo.Id }, newTodo);
+         }
 
         [HttpPut("{id}")]
-        public ActionResult<Todo> UpdateTodo(int id, [FromBody] UpdateTodoRequest request)
-        {
-            var todo = _todos.FirstOrDefault(t => t.Id == id);
-            if (todo == null)
-            {
-                return NotFound(new { error = "Todo Not Found" });
-            }
-            if (!string.IsNullOrWhiteSpace(request.Text))
-            {
-                todo.Text = request.Text.Trim();
-            }
-            if (request.Done.HasValue)
-            {
-                todo.Done = request.Done.Value;
-            }
-            return Ok(todo);
-        }
+         public async Task <ActionResult<Todo>> UpdateTodo(int id, [FromBody] UpdateTodoRequest request)
+         {
+             var todo = _context.Todos.Find(id);
+             if (todo == null)
+             {
+                 return NotFound(new { error = "Todo Not Found" });
+             }
+             if (!string.IsNullOrWhiteSpace(request.Text))
+             {
+                 todo.Text = request.Text.Trim();
+             }
+             if (request.Done.HasValue)
+             {
+                 todo.Done = request.Done.Value;
+             }
+             await _context.SaveChangesAsync();
+             return Ok(todo);
+         }
 
-        [HttpDelete("{id}")]
-        public IActionResult DeleteTodo(int id)
-        {
-            var todo = _todos.FirstOrDefault(t => t.Id == id);
-            if (todo == null )
-            {
-                return NotFound(new { error = "Todo Not Found" });
-            }
-            _todos.Remove(todo);
+         [HttpDelete("{id}")]
+         public async Task <IActionResult> DeleteTodo(int id)
+         {
+             var todo = _context.Todos.Find(id);
+             if (todo == null )
+             {
+                 return NotFound(new { error = "Todo Not Found" });
+             }
+             _context.Todos.Remove(todo);
+            await _context.SaveChangesAsync();
             return NoContent();
-        }
+         }
     }
 }
